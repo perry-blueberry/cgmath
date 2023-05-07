@@ -1572,11 +1572,8 @@ mint_conversions!(Matrix3 { x, y, z }, ColumnMatrix3);
 #[cfg(feature = "mint")]
 mint_conversions!(Matrix4 { x, y, z, w }, ColumnMatrix4);
 
-#[cfg(feature = "bytemuck")]
 impl_bytemuck_cast!(Matrix2);
-#[cfg(feature = "bytemuck")]
 impl_bytemuck_cast!(Matrix3);
-#[cfg(feature = "bytemuck")]
 impl_bytemuck_cast!(Matrix4);
 
 impl<S: BaseNum> From<Matrix2<S>> for Matrix3<S> {

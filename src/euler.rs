@@ -225,5 +225,4 @@ impl<S: Clone, A: Angle + Into<S>> From<Euler<A>> for MintEuler<S> {
     }
 }
 
-#[cfg(feature = "bytemuck")]
 impl_bytemuck_cast!(Euler);
