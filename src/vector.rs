@@ -72,6 +72,19 @@ pub struct Vector3<S> {
     pub z: S,
 }
 
+/* impl<S> Vector3<S>
+where
+    S: Mul<Output = S>,
+{
+    pub fn mul_element_wise(&self, other: Vector3<S>) -> Vector3<S> {
+        Vector3 {
+            x: self.x * other.x,
+            y: self.y * other.y,
+            z: self.z * other.z,
+        }
+    }
+} */
+
 /// A 4-dimensional vector.
 ///
 /// This type is marked as `#[repr(C)]`.

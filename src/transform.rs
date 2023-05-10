@@ -71,7 +71,7 @@ pub trait Transform<P: EuclideanSpace>: Sized + One {
 /// displacement vector and scale amount.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Decomposed<V: VectorSpace, R> {
-    pub scale: V::Scalar,
+    pub scale: Vector3<V::Scalar>,
     pub rot: R,
     pub disp: V,
 }
@@ -82,7 +82,7 @@ where
 {
     fn one() -> Self {
         Decomposed {
-            scale: P::Scalar::one(),
+            scale: Vector3::new(P::Scalar::one(), P::Scalar::one(), P::Scalar::one()),
             rot: R::one(),
             disp: P::Diff::zero(),
         }
@@ -116,7 +116,7 @@ where
         let rot = R::look_at(center - eye, up);
         let disp = rot.rotate_vector(P::origin() - eye);
         Decomposed {
-            scale: P::Scalar::one(),
+            scale: Vector3::new(P::Scalar::one(), P::Scalar::one(), P::Scalar::one()),
             rot,
             disp,
         }
@@ -127,7 +127,7 @@ where
         let rot = R::look_at(eye - center, up);
         let disp = rot.rotate_vector(P::origin() - eye);
         Decomposed {
-            scale: P::Scalar::one(),
+            scale: Vector3::new(P::Scalar::one(), P::Scalar::one(), P::Scalar::one()),
             rot,
             disp,
         }
@@ -138,7 +138,7 @@ where
         let rot = R::look_at(center - eye, up);
         let disp = rot.rotate_vector(P::origin() - eye);
         Decomposed {
-            scale: P::Scalar::one(),
+            scale: Vector3::new(P::Scalar::one(), P::Scalar::one(), P::Scalar::one()),
             rot,
             disp,
         }
@@ -146,38 +146,43 @@ where
 
     #[inline]
     fn transform_vector(&self, vec: P::Diff) -> P::Diff {
-        self.rot.rotate_vector(vec * self.scale)
+        self.rot.rotate_vector(vec * self.scale.magnitude())
     }
 
     #[inline]
     fn inverse_transform_vector(&self, vec: P::Diff) -> Option<P::Diff> {
-        if ulps_eq!(self.scale, &P::Scalar::zero()) {
+        if ulps_eq!(self.scale.magnitude(), &P::Scalar::zero()) {
             None
         } else {
-            Some(self.rot.invert().rotate_vector(vec / self.scale))
+            Some(
+                self.rot
+                    .invert()
+                    .rotate_vector(vec / self.scale.magnitude()),
+            )
         }
     }
 
     #[inline]
     fn transform_point(&self, point: P) -> P {
-        self.rot.rotate_point(point * self.scale) + self.disp
+        self.rot.rotate_point(point * self.scale.magnitude()) + self.disp
     }
 
     fn concat(&self, other: &Decomposed<P::Diff, R>) -> Decomposed<P::Diff, R> {
         Decomposed {
-            scale: self.scale * other.scale,
+            scale: self.scale.mul_element_wise(other.scale),
             rot: self.rot * other.rot,
-            disp: self.rot.rotate_vector(other.disp * self.scale) + self.disp,
+            disp: self.rot.rotate_vector(other.disp * self.scale.magnitude()) + self.disp,
         }
     }
 
     fn inverse_transform(&self) -> Option<Decomposed<P::Diff, R>> {
-        if ulps_eq!(self.scale, &P::Scalar::zero()) {
+        if ulps_eq!(self.scale.magnitude(), &P::Scalar::zero()) {
             None
         } else {
-            let s = P::Scalar::one() / self.scale;
+            let s = Vector3::new(P::Scalar::one(), P::Scalar::one(), P::Scalar::one())
+                .div_element_wise(self.scale);
             let r = self.rot.invert();
-            let d = r.rotate_vector(self.disp.clone()) * -s;
+            let d = r.rotate_vector(self.disp.clone()) * -s.magnitude(); //.mul_element_wise(-s);
             Some(Decomposed {
                 scale: s,
                 rot: r,
@@ -201,7 +206,7 @@ pub trait Transform3:
 impl<S: BaseFloat, R: Rotation2<Scalar = S>> From<Decomposed<Vector2<S>, R>> for Matrix3<S> {
     fn from(dec: Decomposed<Vector2<S>, R>) -> Matrix3<S> {
         let m: Matrix2<_> = dec.rot.into();
-        let mut m: Matrix3<_> = (m * dec.scale).into();
+        let mut m: Matrix3<_> = (m * dec.scale.magnitude()).into();
         m.z = dec.disp.extend(S::one());
         m
     }
@@ -210,7 +215,7 @@ impl<S: BaseFloat, R: Rotation2<Scalar = S>> From<Decomposed<Vector2<S>, R>> for
 impl<S: BaseFloat, R: Rotation3<Scalar = S>> From<Decomposed<Vector3<S>, R>> for Matrix4<S> {
     fn from(dec: Decomposed<Vector3<S>, R>) -> Matrix4<S> {
         let m: Matrix3<_> = dec.rot.into();
-        let mut m: Matrix4<_> = (m * dec.scale).into();
+        let mut m: Matrix4<_> = (m * dec.scale.magnitude()).into();
         m.w = dec.disp.extend(S::one());
         m
     }
@@ -228,6 +233,7 @@ impl<S: VectorSpace, R, E: BaseFloat> approx::AbsDiffEq for Decomposed<S, R>
 where
     S: approx::AbsDiffEq<Epsilon = E>,
     S::Scalar: approx::AbsDiffEq<Epsilon = E>,
+    Vector3<S::Scalar>: approx::AbsDiffEq<Epsilon = E>,
     R: approx::AbsDiffEq<Epsilon = E>,
 {
     type Epsilon = E;
@@ -239,7 +245,7 @@ where
 
     #[inline]
     fn abs_diff_eq(&self, other: &Self, epsilon: E) -> bool {
-        S::Scalar::abs_diff_eq(&self.scale, &other.scale, epsilon)
+        Vector3::abs_diff_eq(&self.scale, &other.scale, epsilon)
             && R::abs_diff_eq(&self.rot, &other.rot, epsilon)
             && S::abs_diff_eq(&self.disp, &other.disp, epsilon)
     }
@@ -249,6 +255,7 @@ impl<S: VectorSpace, R, E: BaseFloat> approx::RelativeEq for Decomposed<S, R>
 where
     S: approx::RelativeEq<Epsilon = E>,
     S::Scalar: approx::RelativeEq<Epsilon = E>,
+    Vector3<S::Scalar>: approx::RelativeEq<Epsilon = E>,
     R: approx::RelativeEq<Epsilon = E>,
 {
     #[inline]
@@ -258,7 +265,7 @@ where
 
     #[inline]
     fn relative_eq(&self, other: &Self, epsilon: E, max_relative: E) -> bool {
-        S::Scalar::relative_eq(&self.scale, &other.scale, epsilon, max_relative)
+        Vector3::relative_eq(&self.scale, &other.scale, epsilon, max_relative)
             && R::relative_eq(&self.rot, &other.rot, epsilon, max_relative)
             && S::relative_eq(&self.disp, &other.disp, epsilon, max_relative)
     }
@@ -268,6 +275,7 @@ impl<S: VectorSpace, R, E: BaseFloat> approx::UlpsEq for Decomposed<S, R>
 where
     S: approx::UlpsEq<Epsilon = E>,
     S::Scalar: approx::UlpsEq<Epsilon = E>,
+    Vector3<S::Scalar>: approx::UlpsEq<Epsilon = E>,
     R: approx::UlpsEq<Epsilon = E>,
 {
     #[inline]
@@ -277,7 +285,7 @@ where
 
     #[inline]
     fn ulps_eq(&self, other: &Self, epsilon: E, max_ulps: u32) -> bool {
-        S::Scalar::ulps_eq(&self.scale, &other.scale, epsilon, max_ulps)
+        Vector3::ulps_eq(&self.scale, &other.scale, epsilon, max_ulps)
             && R::ulps_eq(&self.rot, &other.rot, epsilon, max_ulps)
             && S::ulps_eq(&self.disp, &other.disp, epsilon, max_ulps)
     }
